@@ -1,5 +1,5 @@
 ---
-name: x-search
+name: X + Web Search
 description: Search X (Twitter) posts and the web for real-time news, trending topics, and current events using the Grok API.
 metadata:
   require-secret: true
