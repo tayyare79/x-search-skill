@@ -13,56 +13,53 @@ window["ai_edge_gallery_get_result"] = async (data, secret) => {
       return JSON.stringify({ error: "No search query provided." });
     }
     if (!secret) {
-      return JSON.stringify({ error: "No xAI API key provided. Please enter your key in the skill settings." });
+      return JSON.stringify({ error: "No xAI API key. Please configure it in skill settings." });
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    // Use corsproxy.io to handle CORS in webview
+    const apiUrl = "https://corsproxy.io/?" + encodeURIComponent("https://api.x.ai/v1/responses");
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${secret}`
+        "Authorization": "Bearer " + secret.trim()
       },
       body: JSON.stringify({
-        model: "grok-3",
-        messages: [
-          {
-            role: "system",
-            content: `You are a search assistant. Search X for the given query and return the top ${maxResults} relevant posts/results. For each result include: author, content snippet, and date if available. Format the output clearly and concisely.`
-          },
+        model: "grok-4-1-fast-non-reasoning",
+        input: [
           {
             role: "user",
-            content: `Search X for: ${query}`
+            content: "Search X for recent posts about: " + query + ". Summarize the top " + maxResults + " most relevant results with author names and dates."
           }
         ],
-        search_parameters: {
-          mode: "on",
-          sources: [{ type: "x" }],
-          max_search_results: maxResults
-        }
+        tools: [{ type: "x_search" }]
       })
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      return JSON.stringify({ error: `xAI API error ${response.status}: ${err?.error?.message || response.statusText}` });
+      return JSON.stringify({ error: "xAI API error " + response.status + ": " + (err?.error || response.statusText) });
     }
 
     const responseData = await response.json();
-    const content = responseData?.choices?.[0]?.message?.content;
+
+    // Find the assistant message in the output array
+    const msgItem = responseData.output && responseData.output.find(o => o.type === "message");
+    const content = msgItem && msgItem.content && msgItem.content[0] && msgItem.content[0].text;
 
     if (!content) {
-      return JSON.stringify({ error: "No results returned from xAI API." });
+      return JSON.stringify({ error: "No results returned." });
     }
 
-    // Truncate if too long for context
-    const truncated = content.length > 4000
-      ? content.substring(0, 4000) + "\n\n... [TRUNCATED]"
+    const truncated = content.length > 3500
+      ? content.substring(0, 3500) + "\n\n... [TRUNCATED]"
       : content;
 
     return JSON.stringify({ result: truncated });
 
   } catch (e) {
-    return JSON.stringify({ error: `X Search failed: ${e.message}` });
+    return JSON.stringify({ error: "X Search failed: " + e.message });
   }
 };
 </script>
